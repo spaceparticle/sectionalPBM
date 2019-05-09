@@ -5,6 +5,7 @@ Created on Mon Jul 02 10:56:07 2018
 @author: gliu
 
 reference: Direct simulation Monte Carlo method for particle coagulation and aggregation.Kruis 2000.pdf
+comparison with the Case 1 in that paper, i.e. beta(i,j) = A
 """
 import numpy as npy
 import matplotlib.pyplot as plt
@@ -12,6 +13,7 @@ from matplotlib.pyplot import *
 matplotlib.rcParams['font.family'] = 'Times New Roman'
 
 #%%
+# keep in mind that v is volume (not the diameter and of course NOT the velocity) of the particle (aggregate).
 v_min = 1.0
 v_max = 10.0
 v_ratio = 1.08
@@ -45,6 +47,12 @@ tot_counts = npy.zeros((max_iters+1,1))
 tot_counts[0] = npy.sum(par_counts)
 parN_t = npy.zeros((max_iters+1, Nv+1)) # first column is time
 parN_t[0, :] = npy.insert(par_counts, 0, 0.)
+#
+progress_report_times = 20
+iter_per_report = max_iters / progress_report_times
+i_report = 0
+i_reportlast = 0
+#
 for i_t in range(max_iters):
     t = (i_t+1) * dt
     dndt = npy.zeros_like(vs)
@@ -68,10 +76,28 @@ for i_t in range(max_iters):
     par_counts = par_counts + d_counts
     parN_t[i_t+1, :] = npy.insert(par_counts, 0, t) 
     tot_counts[i_t+1] = npy.sum(par_counts)            
+    # report (print) the progress of calculation
+    i_report = (i_t + 1) / iter_per_report
+    if i_report > i_reportlast:
+        print '   {}% finished'.format(i_report*100./progress_report_times)
+        i_reportlast = i_report
+#        
 primary_par_counts = vs / v_min
 count_percent = par_counts / tot_counts[-1]
-print 'N/N0 at end of simulation given by PBM: ', tot_counts[-1]/tot_counts[0]  
-print 'Expected (theoretical) value: ', 1/(1+N0*A/2*(dt*max_iters))      
+#
+NtoN0ratio_calc = tot_counts[-1]/tot_counts[0]  
+NtoN0ratio_expect = 1/(1+N0*A/2*(dt*max_iters))      
+print '   N/N0 at end of simulation given by PBM: ', NtoN0ratio_calc
+print '   Expected (theoretical) value: ', NtoN0ratio_expect 
+pass_relative_threshld = 0.02
+if abs(NtoN0ratio_calc/(NtoN0ratio_expect + 1.0e-13) - 1.) > pass_relative_threshld:
+    print '[Warning] Relative error is too big!'
+else:
+    print '[Good] Relative error is acceptable'
+#    
 k = 1.999
-print 'Theoreticl Pk: ', (N0*A*t/2)**(k-1)/(1+(N0*A*t/2))**k
-print 'Please check the calculated Pk in count_persent for this k'
+print '   Theoreticl Pk @ {0} is {1}: '.format(k, (N0*A*t/2)**(k-1)/(1+(N0*A*t/2))**k)
+print '   Please check the calculated Pk in count_persent for this k'
+k = 7.98806
+print '   Theoreticl Pk @ {0} is {1}: '.format(k, (N0*A*t/2)**(k-1)/(1+(N0*A*t/2))**k)
+print '   Please check the calculated Pk in count_persent for this k'
