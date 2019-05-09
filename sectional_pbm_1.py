@@ -81,6 +81,7 @@ def calcBeta(dpin=None, linmiu=False): # linmiu=True means input dp is in miu m
 def getnp(dps=[1.0], linmiu=True):
     if not linmiu:
         dps = dps * 1e6 # convert to in miu m
+    # 粒径分布采用赵海波公式6.38设定（红皮专著p244页）
     Np = npy.array([5e14, 1e11, 1e9])
     dpg = npy.array([0.08, 2.0, 10.0]) # miu m
     sgmpg = npy.array([1.5, 2.0, 1.5])
@@ -94,7 +95,7 @@ def getnp(dps=[1.0], linmiu=True):
 def getInitialPSD(dp=None):
     if dp is None:
         #dp=10**(npy.arange(-1, 2, 0.05))
-        dp = 10**npy.linspace(npy.log10(0.08), npy.log10(20), 200) # miu m
+        dp = 10**npy.linspace(npy.log10(0.08), npy.log10(20), 200) # miu m，粒径分布采用赵海波公式6.38设定（红皮专著p244页）
     np, np_bin = getnp(dps=dp)
     #drawPSD(dp, np, 'np ~ dp')
     log_dp = npy.log10(dp*1e-6)
