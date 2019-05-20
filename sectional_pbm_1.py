@@ -111,8 +111,12 @@ def getInitialPSD(dp=None):
     #delta_m = par_m[1:]- par_m[:-1]
     delta_log_dp = log_dp[1:]- log_dp[:-1]
     drawPSD(dp[:-1]*1e-6, par_m_bin/delta_log_dp, 'dM/dlog(dp) ~ dp')
+    return
 
 #%%
+    
+#getInitialPSD()
+
 laddOneBig = True # add One group of big particles etc 50um
 mass_OB = 5e3 # mg
 dpOB = 50e-6 # m
@@ -137,14 +141,27 @@ B = calcBeta(dpin = dps, linmiu=False)
 if npy.max(npy.abs(B-B.T)) > 1e-23: # B must be symmetric (B.T must = B)
     print 'potential error!'
 log_dp = npy.log10(dps)
+#
 np_, Np_bin = getnp(dps=dps, linmiu=False)
+#
 if laddOneBig: npy.append(dps, dpOB)
-par_m = npy.pi / 6 * dps**3 * par_rho * 1e6 # mg
+par_m = npy.pi / 6 * dps**3 * par_rho * 1e6 # mass of each single particle, mg
 if laddOneBig:
     Np_bin = npy.append(Np_bin, mass_OB/par_m[-1])
-    par_m_bin = par_m * Np_bin
+    par_m_bin = par_m * Np_bin   
 else:
     par_m_bin = par_m[:-1] * Np_bin
+#    
+print '>>total mass of particles, mg/Nm3 (not counting the mass of the "addOneBig"): ', \
+npy.sum(par_m_bin[:-1]) if laddOneBig else npy.sum(par_m_bin)
+mass_conc_inNm3 = npy.sum(par_m_bin)
+conv_div_ = flu_T/273.15 * 101325./flu_P * 1./(1 - 0.07) # H2O vfrac of flue gas at ESP is ~7%
+print '...converting Np_bin and par_m_bin from units in Nm3 to real m3 with conv_div_: {}'.format(conv_div_)
+Np_bin = Np_bin / conv_div_
+par_m_bin = par_m_bin / conv_div_
+mass_conc_inm3 = npy.sum(par_m_bin)
+assert npy.abs(mass_conc_inm3 * conv_div_ / mass_conc_inNm3 - 1.) <= 1e-8, 'Error in converting'
+#
 delta_log_dp = log_dp[1:]- log_dp[:-1]
 #drawPSD(dps[:-1], par_m_bin/delta_log_dp, 'dM/dlog(dp) ~ dp')
 #%%
@@ -152,7 +169,7 @@ lEvolv = True
 if lEvolv:
     if not laddOneBig: Np_bin = npy.append(Np_bin, 0)
     dt = 0.001
-    max_iters = 1000 # 不能过长，使得计算终点时刻的v_max尺寸的颗粒团数目仍然非常少，否则tot_count的统计值会不准，因为超出了粒径范围
+    max_iters = 100 # 不能过长，使得计算终点时刻的v_max尺寸的颗粒团数目仍然非常少，否则tot_count的统计值会不准，因为超出了粒径范围
 #    par_counts = npy.zeros_like(vs)
     par_counts = Np_bin
     tot_counts = npy.zeros((max_iters+1,1))
