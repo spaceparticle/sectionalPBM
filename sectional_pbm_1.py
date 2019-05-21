@@ -12,8 +12,10 @@ from matplotlib.pyplot import *
 from pbm_MagnitudeAnalysis import drawBeta
 import copy
 from scipy import interpolate
+import pandas as pd
+from pandas import DataFrame, Series
 matplotlib.rcParams['font.family'] = 'Times New Roman'
-
+import time
 
 figsize_dflt = (8, 6)
 label_size = 18
@@ -29,6 +31,32 @@ flu_moleculediam = 364. * 1e-12 # using kinetic diameter, https://en.wikipedia.o
 flu_lamda = kB * flu_T / (npy.sqrt(2.) * npy.pi * flu_moleculediam**2 * flu_P) # https://en.wikipedia.org/wiki/Mean_free_path
 tur_eps = 10. # turbulent flow epsilon
 par_rho = 2200. # kg/m3
+
+def interpOnParRelVel(relvel_src, dp_tar, ldbg=False):
+    f_tar = interpolate.interp1d(relvel_src.index.values, relvel_src.values, kind='slinear')
+    if ldbg: print type(f_tar(dp_tar[0])), f_tar(dp_tar[0]).shape
+    relvel_tar = [float(f_tar(dp_)) for dp_ in dp_tar]
+    if ldbg: print relvel_tar
+    relvel_tar = Series(relvel_tar, index=dp_tar) 
+    return relvel_tar
+
+def readParRelVel(filename='2D_xt4D_Standard.csv', ldbg=False):
+    if ldbg: print 'in <readParRelVel> '
+    if not filename:
+        return
+    df = pd.read_csv(filename)
+    cols = df.columns
+    dps = []
+    relvel_mean = []
+    for col in cols:
+        col_split = col.split('um_rel_vel')
+        if len(col_split) == 2:
+            dp = float(col_split[0]) 
+            dps.append(dp)
+            relvel_mean.append(df[col].mean())
+    if ldbg: print 'dps: ', dps
+    relvel_series = Series(relvel_mean, index=dps) 
+    return relvel_series
 
 def drawPSD(dps, np, figttl=''):
     figure(figsize=figsize_dflt)
@@ -114,7 +142,11 @@ def getInitialPSD(dp=None):
     return
 
 #%%
-    
+
+relvel_mean = readParRelVel(ldbg=True)
+dptar = np.array([10, 12, 15, 21], dtype=np.float)
+relvel = interpOnParRelVel(relvel_mean, dptar)
+time.sleep(5)    
 #getInitialPSD()
 
 laddOneBig = True # add One group of big particles etc 50um
