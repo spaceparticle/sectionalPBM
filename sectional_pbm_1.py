@@ -8,29 +8,18 @@ reference: Direct simulation Monte Carlo method for particle coagulation and agg
 """
 import numpy as npy
 import matplotlib.pyplot as plt
-from matplotlib.pyplot import *
-from pbm_MagnitudeAnalysis import drawBeta
+#from matplotlib.pyplot import *
+from pbm_MagnitudeAnalysis import setMatPlotLib, setParams, calcBeta
 import copy
 from scipy import interpolate
 import pandas as pd
 from pandas import DataFrame, Series
-matplotlib.rcParams['font.family'] = 'Times New Roman'
+#matplotlib.rcParams['font.family'] = 'Times New Roman'
 import time
+from datetime import datetime
 
-figsize_dflt = (8, 6)
-label_size = 18
-tick_size = 16
-
-kB = 1.381e-23
-flu_T = 403 # K
-flu_niu = 2.5e-5 # fluid niu
-flu_rho = 0.88
-flu_P = 101325.
-flu_miu = flu_niu * flu_rho
-flu_moleculediam = 364. * 1e-12 # using kinetic diameter, https://en.wikipedia.org/wiki/Kinetic_diameter
-flu_lamda = kB * flu_T / (npy.sqrt(2.) * npy.pi * flu_moleculediam**2 * flu_P) # https://en.wikipedia.org/wiki/Mean_free_path
-tur_eps = 10. # turbulent flow epsilon
-par_rho = 2200. # kg/m3
+figsize_dflt, total_markers = setMatPlotLib()
+params = setParams()
 
 def interpOnParRelVel(relvel_src, dp_tar, ldbg=False):
     f_tar = interpolate.interp1d(relvel_src.index.values, relvel_src.values, kind='slinear')
@@ -59,51 +48,17 @@ def readParRelVel(filename='2D_xt4D_Standard.csv', ldbg=False):
     return relvel_series
 
 def drawPSD(dps, np, figttl=''):
-    figure(figsize=figsize_dflt)
-    plot(dps, np, 'b-', markersize = 5)
-    plt.xticks(fontsize=tick_size) #, rotation=90) # plot.tick_params(axis='both', which='major', labelsize=10)
-    plt.yticks(fontsize=tick_size)
+    plt.figure(figsize=figsize_dflt)
+    plt.plot(dps, np, 'b-', markersize = 5)
+#    plt.xticks(fontsize=tick_size) #, rotation=90) # plot.tick_params(axis='both', which='major', labelsize=10)
+#    plt.yticks(fontsize=tick_size)
     plt.xscale('log')
     plt.yscale('log')
-    plt.xlabel('particle diamter, micron',fontsize=label_size)
+    plt.xlabel('particle diamter, micron')
 #    plt.ylabel('particle number density(?)',fontsize=label_size)
 #    legend(['Brownian', 'Turbulent shearing', 'Turbulent inertia', 'Total'], fontsize=tick_size)
 #    foo = 1e7
-    title(figttl, fontsize=label_size)
-
-def calcBeta(dpin=None, linmiu=False): # linmiu=True means input dp is in miu m
-    if dpin is None:
-        dp_logRng = npy.linspace(-2,2,num=int(4/0.02))
-        dp = npy.power(npy.ones_like(dp_logRng)*10, dp_logRng) * 1e-6 # in m
-    else:
-        dp = copy.deepcopy(dpin)        
-    if linmiu:
-        dp = dp * 1e-6 # in m
-    dp_N = dp.shape[0]
-    # following dp should be in unit of 'm' not 'miu m'
-    #par_lamda = kB * flu_T / (npy.sqrt(2.) * dp**2 * flu_P)
-    par_Kn = flu_lamda / (dp/2)
-    #par_Cs = npy.ones_like(dp) # set to 1 for now, later will use Kn correction
-    par_Cs = 1 + par_Kn * (1.27 + 0.4 * npy.exp(-1.1 / par_Kn))
-    par_m = npy.pi/6 * (dp**3) * par_rho
-    par_cbar = npy.sqrt(8*kB*flu_T/(npy.pi*par_m))
-    par_D = par_Cs * kB * flu_T /(3 * npy.pi * flu_miu * dp)
-    par_l = 8 * par_D / (npy.pi * par_cbar) # mean free path of particles
-    par_g = ((dp + par_l)**3 - (dp**2 + par_l**2)**1.5) / (3 * dp *par_l) - dp
-#    ipar = 100 #115 for 2miu, 50 for 0.1miu, 100 for 1.0 miu
-    betaAll = npy.zeros((dp_N, dp_N))
-    for ipar in range(dp_N):
-        # --- Brownian diffusion ---
-        beta_B = 2 * npy.pi * (par_D[ipar] + par_D) * (dp[ipar] + dp) / \
-         ((dp[ipar] + dp)/(dp[ipar] + dp + 2*npy.sqrt(par_g[ipar]**2 + par_g**2)) \
-          + 8*(par_D[ipar]+par_D)/npy.sqrt(par_cbar[ipar]**2+par_cbar**2)/(dp[ipar]+dp))
-        #% --- Turbulent shearing ---
-        beta_S = 1.3 * npy.sqrt(tur_eps / flu_niu) * (dp[ipar]/2 + dp/2)**3
-        beta_I = 5.7 * (dp[ipar]/2 + dp/2)**2 * npy.abs((par_D[ipar]*par_m[ipar] - par_D*par_m)/kB/flu_T) \
-        *(tur_eps**3/flu_niu)**0.25
-        betaAll[ipar,:] = beta_B + beta_S + beta_I
-#    drawBeta(beta_B, beta_S, beta_I, dp, ipar)
-    return betaAll
+#    plt.title(figttl, fontsize=label_size)
     
 #%%
 def getnp(dps=[1.0], linmiu=True):
@@ -116,7 +71,8 @@ def getnp(dps=[1.0], linmiu=True):
     ln_sgmpg = npy.log(sgmpg)
     np = [npy.sum(Np / npy.sqrt(2*npy.pi)/ln_sgmpg * npy.exp(-(npy.log(dp/dpg))**2/2/ln_sgmpg**2) \
                   / dp) for dp in dps]
-    delta_dp = dps[1:] - dps[:-1]
+#    delta_dp = dps[1:] - dps[:-1]
+    delta_dp = npy.diff(dps)
     np_bin = delta_dp * np[:-1]
     return np, np_bin
 
@@ -127,7 +83,7 @@ def getInitialPSD(dp=None):
     np, np_bin = getnp(dps=dp)
     #drawPSD(dp, np, 'np ~ dp')
     log_dp = npy.log10(dp*1e-6)
-    par_m = npy.pi / 6 * (dp*1e-6)**3 * par_rho * 1e6 # mg
+    par_m = npy.pi / 6 * (dp*1e-6)**3 * params['par_rho'] * 1e6 # mg
 #    delta_dp=dp[1:]-dp[:-1]
 #    np_bin = delta_dp*np[:-1]
     Np0 = npy.sum(np_bin)
@@ -144,19 +100,21 @@ def getInitialPSD(dp=None):
 #%%
 
 relvel_mean = readParRelVel(ldbg=True)
-dptar = np.array([10, 12, 15, 21], dtype=np.float)
+dptar = npy.array([10, 12, 15, 21], dtype=npy.float)
 relvel = interpOnParRelVel(relvel_mean, dptar)
-time.sleep(5)    
+#time.sleep(5)    
 #getInitialPSD()
 
-laddOneBig = True # add One group of big particles etc 50um
-mass_OB = 5e3 # mg
-dpOB = 50e-6 # m
+laddOneBig = False # add One group of big particles etc 50um
+if laddOneBig:
+    mass_OB = 5e3 # mg
+    dpOB = 35.e-6 # m
+#
 dp_norm0 = 1e-6 # in m
 v_norm0 = npy.pi/6 * dp_norm0**3
 #    
 v_min = 0.08**3 #0.01 miu
-v_max = 20**3 #100 miu
+v_max = 20.0**3 #100 miu
 v_ratio = 1.08
 Nv = int(npy.log10(v_max/v_min) / npy.log10(v_ratio))
 ns = npy.arange(Nv+3)
@@ -169,15 +127,25 @@ vs_l = npy.concatenate(([vs[0]],vs_l))
 vs = vs[:-1]
 vs_bounds = npy.column_stack((vs, vs_l, vs_h))
 dps = npy.power((vs * v_norm0 * 6 / npy.pi), 1./3.)
-B = calcBeta(dpin = dps, linmiu=False)
-if npy.max(npy.abs(B-B.T)) > 1e-23: # B must be symmetric (B.T must = B)
-    print 'potential error!'
+#
+beta_B, beta_TS, beta_TI, beta_IC, beta_IM, B = calcBeta(params, dp=dps, dp_tars=dps, \
+             dp_icAndim_ignore={'dp_tar_upbound':1.67e-6,'dp_src_lowbound':10e-6}, ldraw=False) #calcBeta(dpin = dps, linmiu=False)
+#
+if npy.max(npy.abs(beta_B-beta_B.T)) > 1e-23 or npy.max(npy.abs(beta_TS-beta_TS.T)) > 1e-23 or \
+    npy.max(npy.abs(beta_TI-beta_TI.T)) > 1e-23: # B must be symmetric (B.T must = B)
+    print 'Potential ERROR, certain betas are not symmetric, pausing for couple of seconds, better STOP the program and check !'
+    time.sleep(20)
 log_dp = npy.log10(dps)
 #
 np_, Np_bin = getnp(dps=dps, linmiu=False)
+
+print dps[-1], len(dps)
 #
-if laddOneBig: npy.append(dps, dpOB)
-par_m = npy.pi / 6 * dps**3 * par_rho * 1e6 # mass of each single particle, mg
+#if laddOneBig: npy.append(dps, dpOB) # BUG!
+if laddOneBig: 
+    dps = npy.append(dps, dpOB)
+print dps[-1], len(dps), len(Np_bin)
+par_m = npy.pi / 6 * dps**3 * params['par_rho'] * 1e6 # mass of each single particle, mg
 if laddOneBig:
     Np_bin = npy.append(Np_bin, mass_OB/par_m[-1])
     par_m_bin = par_m * Np_bin   
@@ -187,7 +155,8 @@ else:
 print '>>total mass of particles, mg/Nm3 (not counting the mass of the "addOneBig"): ', \
 npy.sum(par_m_bin[:-1]) if laddOneBig else npy.sum(par_m_bin)
 mass_conc_inNm3 = npy.sum(par_m_bin)
-conv_div_ = flu_T/273.15 * 101325./flu_P * 1./(1 - 0.07) # H2O vfrac of flue gas at ESP is ~7%
+conv_div_ = params['flu_T']/273.15 * 101325./params['flu_P'] * 1./(1 - 0.07) # H2O vfrac of flue gas at ESP is ~7%
+print '...(raw Np): ', npy.sum(Np_bin)
 print '...converting Np_bin and par_m_bin from units in Nm3 to real m3 with conv_div_: {}'.format(conv_div_)
 Np_bin = Np_bin / conv_div_
 par_m_bin = par_m_bin / conv_div_
@@ -199,10 +168,19 @@ delta_log_dp = log_dp[1:]- log_dp[:-1]
 #%%
 lEvolv = True
 if lEvolv:
+    print 'evolving ...'
+    wt0 = datetime.now()
+    #
     if not laddOneBig: Np_bin = npy.append(Np_bin, 0)
     dt = 0.001
-    max_iters = 100 # 不能过长，使得计算终点时刻的v_max尺寸的颗粒团数目仍然非常少，否则tot_count的统计值会不准，因为超出了粒径范围
-#    par_counts = npy.zeros_like(vs)
+    max_iters = 50 # 不能过长，使得计算终点时刻的v_max尺寸的颗粒团数目仍然非常少，否则tot_count的统计值会不准，因为超出了粒径范围
+    #    
+    progress_report_times = 50
+    iter_per_report = max(max_iters / progress_report_times, 1)
+    i_report = 0
+    i_reportlast = 0
+    #    
+    # par_counts = npy.zeros_like(vs)
     par_counts = Np_bin
     tot_counts = npy.zeros((max_iters+1,1))
     tot_counts[0] = npy.sum(par_counts)
@@ -238,6 +216,13 @@ if lEvolv:
         par_counts = par_counts + d_counts
         parN_t[i_t+1, :] = npy.insert(par_counts, 0, t) 
         tot_counts[i_t+1] = npy.sum(par_counts)            
+        # report (print) the progress of calculation
+        i_report = (i_t + 1) / iter_per_report
+        if i_report > i_reportlast:
+            wt1 = datetime.now()
+            percent_finished = i_report*100./progress_report_times
+            print '   {:.1f}% finished, ETA: {:.1f} seconds'.format(percent_finished, (wt1-wt0).total_seconds() * (100. - percent_finished)/percent_finished)
+            i_reportlast = i_report
     ts = npy.arange(max_iters + 1) * dt
     primary_par_counts = vs / v_min
     count_percent = par_counts / tot_counts[-1]
@@ -250,59 +235,56 @@ if lEvolv:
     print 'Ratio of second biggest particle counts between end and start of simulation: ', \
     parN_t[-1,-2]/parN_t[0,-2]
     #%%
-    figure(figsize=figsize_dflt)
-    plot(ts, tot_counts, 'b-', markersize = 5)
-    plt.xticks(fontsize=tick_size) #, rotation=90) # plot.tick_params(axis='both', which='major', labelsize=10)
-    plt.yticks(fontsize=tick_size)
+    plt.figure(figsize=figsize_dflt)
+    plt.plot(ts, tot_counts, 'b-', markersize = 5)
+#    plt.xticks(fontsize=tick_size) #, rotation=90) # plot.tick_params(axis='both', which='major', labelsize=10)
+#    plt.yticks(fontsize=tick_size)
 #    plt.xscale('')
 #    plt.yscale('log')
-    plt.xlabel('time (s)',fontsize=label_size)
-    plt.ylabel('particle total number', fontsize=label_size)
-    title('Evolution of particle total counts with time', fontsize=label_size)
+    plt.xlabel('time (s)')#,fontsize=label_size)
+    plt.ylabel('particle total number')#, fontsize=label_size)
+    plt.title('Evolution of particle total counts with time')#, fontsize=label_size)
     #%%
-    figure(figsize=figsize_dflt)
-    plot(dps[0:-1]*1e6, parM_t[0,1:-1], 'b-', markersize = 5)
-    t1_ = 0.5
+    plt.figure(figsize=figsize_dflt)
+    plt.plot(dps[0:-1]*1e6, parM_t[0,1:-1]/npy.diff(npy.log10(dps)), 'b-', markersize = 5)
+    t1_ = ts[-1] * 0.5
     it1_ = npy.argmax(ts>=t1_)
-    plot(dps[0:-1]*1e6, parM_t[it1_, 1:-1], 'm-', markersize = 5)
-    plot(dps[0:-1]*1e6, parM_t[-1, 1:-1], 'r-', markersize = 5)
-    legend(['t=0 s','t=' + str(ts[it1_]) + 's', 't=' + str(ts[-1]) + 's'], fontsize=tick_size)
-    plt.xticks(fontsize=tick_size) #, rotation=90) # plot.tick_params(axis='both', which='major', labelsize=10)
-    plt.yticks(fontsize=tick_size)
+    plt.plot(dps[0:-1]*1e6, parM_t[it1_, 1:-1]/npy.diff(npy.log10(dps)), 'm-', markersize = 5)
+    plt.plot(dps[0:-1]*1e6, parM_t[-1, 1:-1]/npy.diff(npy.log10(dps)), 'r-', markersize = 5)
+    plt.legend(['t=0 s','t=' + str(ts[it1_]) + 's', 't=' + str(ts[-1]) + 's'])#, fontsize=tick_size)
+#    plt.xticks(fontsize=tick_size) #, rotation=90) # plot.tick_params(axis='both', which='major', labelsize=10)
+#    plt.yticks(fontsize=tick_size)
     plt.xscale('log')
     plt.yscale('log')
-    plt.xlabel('dp (micron)',fontsize=label_size)
-    plt.ylabel('dM/dlog(dp), mg/m3', fontsize=label_size)
-    title('dM/dlog(dp) ~ dp', fontsize=label_size)
+    plt.xlabel(r'$\it{d}_p$ ($\mu$m)')#,fontsize=label_size)
+    plt.ylabel(r'$d\it{M}$/dlog($\it{d}_p$) (mg/m3)')#, fontsize=label_size)
+    plt.title('dM/dlog(dp) ~ dp')#, fontsize=label_size)
+
     #%%
-    figure(figsize=figsize_dflt)
-    plot(dps[:-2]*1e6, yita, 'xr-', markersize = 5)
-    plt.xticks(fontsize=tick_size) #, rotation=90) # plot.tick_params(axis='both', which='major', labelsize=10)
-    plt.yticks(fontsize=tick_size)
+    plt.figure(figsize=figsize_dflt)
+    plt.plot(dps[:-2]*1e6, yita, 'xr-', markersize = 5)
     plt.xscale('log')
-#    plt.yscale('log')
-    plt.xlabel('dp (micron)',fontsize=label_size)
-    plt.ylabel("Percentage of 'removal', %", fontsize=label_size)
-    title("Percentage of 'removal' ~ dp", fontsize=label_size)
+    plt.xlabel(r'$\it{d}_p$ ($\mu$m)')#,fontsize=label_size)
+    plt.ylabel(r'$\it{\eta}$ (%)')#, fontsize=label_size)
+    plt.title("Percentage of 'removal' ~ dp")#, fontsize=label_size)
     #%% interpolate to certain dp points
-    dp_tar = 10**(npy.arange(-1, 1, 0.01) - 6)
+    dp_tar = 10**(npy.arange(-1, 1, 0.05) - 6)
     f_tar = interpolate.interp1d(dps[:-2], yita, kind='slinear')
     yita_tar = f_tar(dp_tar)
     rmvl_tar = npy.column_stack((dp_tar, yita_tar))
-    t2_ = 0.5
+    t2_ = ts[-1] * 0.5
     it2_ = npy.argmax(ts>=t2_)
     yita2 = 100*(1 - parM_t[it2_,1:-2]/parM_t[0,1:-2]) 
     f_tar2 = interpolate.interp1d(dps[:-2], yita2, kind='slinear')
     yita_tar2 = f_tar2(dp_tar)
     rmvl_tar2 = npy.column_stack((dp_tar, yita_tar2))
-    figure(figsize=figsize_dflt)
-    plot(dp_tar*1e6, yita_tar2, 'm-', markersize = 5)
-    plot(dp_tar*1e6, yita_tar, 'r-', markersize = 5)
-    legend(['t=' + str(ts[it2_]) + 's', 't=' + str(ts[-1]) + 's'], fontsize=tick_size)
-    plt.xticks(fontsize=tick_size) #, rotation=90) # plot.tick_params(axis='both', which='major', labelsize=10)
-    plt.yticks(fontsize=tick_size)
+    plt.figure(figsize=figsize_dflt)
+    plt.plot(dp_tar*1e6, yita_tar2, 'm-', markersize = 5)
+    plt.plot(dp_tar*1e6, yita_tar, 'r-', markersize = 5)
+    plt.legend(['t=' + str(ts[it2_]) + 's', 't=' + str(ts[-1]) + 's'])#, fontsize=tick_size)
     plt.xscale('log')
-#    plt.yscale('log')
-    plt.xlabel('dp (micron)',fontsize=label_size)
-    plt.ylabel("Percentage of 'removal', %", fontsize=label_size)
-    title("Percentage of 'removal' ~ dp", fontsize=label_size)
+    plt.xlabel(r'$\it{d}_p$ ($\mu$m)')#,fontsize=label_size)
+    plt.ylabel(r'$\it{\eta}$ (%)')#, fontsize=label_size)
+    plt.title('Agglomeration efficiency')#, fontsize=label_size)
+    
+#    plt.ylabel(r'$\it{\beta}$ ($m^3$/s)')
