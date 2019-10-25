@@ -29,11 +29,11 @@ def fluegas_niu(t=100.): # t is in ℃
     niu = 0.1194324e-4 + 0.892572e-7 * t + 0.830565e-10 * t**2 - 0.8619116e-14 * t**3 + 0.132968e-17 * t**4 # 标准烟气的运动粘度，红宝书，niu随温度的变化其实不能忽略
     return niu
 
-def setParams(unittestcode=-1):
+def setParams(unittestcode=-1, tur_eps_input=''):
     params = {}
     if unittestcode == -1: # NOT a unittest if == -1
         params = dict(
-            tur_eps = 745.7, # turbulent flow epsilon
+            tur_eps = tur_eps_input if tur_eps_input != '' else 745.7*1.0 , # turbulent flow epsilon
             kB = 1.381e-23,
             flu_T = 130. + 273., # K
             flu_niu = 2.5e-5, # fluid niu
@@ -65,6 +65,7 @@ def setParams(unittestcode=-1):
     elif unittestcode == 1: # not prepared yet
         pass
     return params
+
         
 def setMatPlotLib():
     global fontsize_multiple, mpl_tick_size, figsize_dflt, total_markers
@@ -154,11 +155,14 @@ def calcBeta(params, dp=[], dp_tars=[], rel_vel=[], dp_icAndim_ignore={}, ldraw=
     #
     for i_tar, dp_tar in enumerate(dp_tars):
         assert dp_tar <= np.max(dp) and dp_tar >= np.min(dp), 'dp_tar is OUT of range!'
-        idx_big = np.argmax(dp>=dp_tar)
-        if idx_big >= 1:
-            ipar = idx_big if dp[idx_big]-dp_tar <= dp_tar - dp[idx_big-1] else idx_big - 1
+        if len(dp) == len(dp_tars) and np.max((dp-dp_tars)) <= 1e-23: # essentially the smae
+            ipar = i_tar
         else:
-            ipar = 0  
+            idx_big = np.argmax(dp>=dp_tar)
+            if idx_big >= 1:
+                ipar = idx_big if dp[idx_big]-dp_tar <= dp_tar - dp[idx_big-1] else idx_big - 1
+            else:
+                ipar = 0  
 #        print 'ipar: {}, dp(ipar):{}'.format(ipar, dp[ipar])
 # --- Brownian diffusion ---
         beta_B[i_tar, :] = 2 * np.pi * (par_D[ipar] + par_D) * (dp[ipar] + dp) / \
@@ -246,7 +250,7 @@ if __name__ == '__main__':
         plt.tight_layout()
     elif mode == 2: # in mode 2, we investigate variation of beta with >>src particle sizes<< at fixed epsilon and len(dp_tars) must be ONE
 #        dp = np.asarray([2.5e-6, 10.0e-6, 20e-6, 35e-6, 50e-6], dtype=np.float)
-        tar_dp_ = 1.67e-6
+        tar_dp_ = 0.08e-6 #1.67e-6
 #        dp_logRng = np.linspace(np.log10(tar_dp_ * 1.0e6), 2, num=int(4/0.02))
         dp_logRng = np.linspace(np.log10(0.01), 2, num=int(600))
         dp = np.power(np.ones_like(dp_logRng)*10, dp_logRng) * 1e-6 # in m
@@ -300,3 +304,19 @@ if __name__ == '__main__':
         #%%
         drawBeta(beta_IM, beta_TS, beta_TI, dp, ipar)
 
+
+#%%
+#
+# tur_eps: @P710: gliu\compare2D3D\2D_xt4D\2D_xt4.0D_OneCylOnly_finer1.5_moreSeg.cas
+#                   Mass-Weighted Average
+#Turbulent Dissipation Rate (Epsilon)              (m2/s3)
+#-------------------------------- --------------------
+#                      fluids0_5d            1737.4286
+#                    fluids10_15d            752.55215
+#                    fluids15_20d            552.79058
+#                    fluids20_25d            360.37207
+#                    fluids25_30d            232.98304
+#                     fluids5_10d            857.44429
+#                ---------------- --------------------
+#                             Net            745.68312
+# 0-20d的话，平均应该是975.1，0-10d为1297.4， 0-15为1115.8
